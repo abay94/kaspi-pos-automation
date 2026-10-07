@@ -1,0 +1,42 @@
+name: Publish image
+
+# One instance of this service runs per sanatorium, so the image must live in
+# a registry every node can pull from. Until 2026-10-07 it existed only as a
+# local containerd import on a single k3s node with imagePullPolicy: Never —
+# rebuild that node and no sanatorium could take a Kaspi payment.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          # :latest for humans, :<sha> so a deployment can be pinned to an
+          # exact build — a sanatorium's payments should never move because
+          # someone pushed to main.
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/kaspi-pos:latest
+            ghcr.io/${{ github.repository_owner }}/kaspi-pos:${{ github.sha }}
+          provenance: false
+          sbom: false
